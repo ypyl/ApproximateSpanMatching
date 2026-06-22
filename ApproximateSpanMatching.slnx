@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ApproximateSpanMatching/ApproximateSpanMatching.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ApproximateSpanMatching.Tests/ApproximateSpanMatching.Tests.csproj" />
+  </Folder>
+</Solution>
