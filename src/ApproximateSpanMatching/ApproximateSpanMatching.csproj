@@ -10,7 +10,7 @@
     <Description>Approximate passage matching for OCR-extracted documents. Word-level token matching with gap penalties, order preservation, and an indexed approach optimized for multi-query scenarios.</Description>
     <PackageTags>approximate-matching;passage-retrieval;text-search;span-matching</PackageTags>
     <Version>0.1.0</Version>
-    <RepositoryUrl>https://github.com/example/ApproximateSpanMatching</RepositoryUrl>
+    <RepositoryUrl>https://github.com/ypyl/ApproximateSpanMatching</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
