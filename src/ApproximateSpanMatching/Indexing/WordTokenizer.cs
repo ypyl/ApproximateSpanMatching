@@ -5,27 +5,27 @@ using System.Text;
 using ApproximateSpanMatching.Models;
 
 /// <summary>
-/// Tokenizes markdown text into word tokens with character offsets.
+/// Tokenizes text into word tokens with character offsets.
 /// Applies NFC normalization, then extracts tokens via greedy leftmost match.
 /// </summary>
-public static class MarkdownTokenizer
+public static class WordTokenizer
 {
     /// <summary>
-    /// Tokenizes a markdown string into an ordered list of word tokens with character offsets.
+    /// Tokenizes a text string into an ordered list of word tokens with character offsets.
     /// </summary>
-    /// <param name="markdown">The input markdown string. Null throws ArgumentNullException.</param>
+    /// <param name="text">The input text string. Null throws ArgumentNullException.</param>
     /// <param name="caseSensitive">If false (default), tokens are lowercased.</param>
     /// <returns>Ordered list of tokens; empty if input is empty.</returns>
-    public static List<Token> Tokenize(string markdown, bool caseSensitive = false)
+    public static List<Token> Tokenize(string text, bool caseSensitive = false)
     {
-        if (markdown == null)
-            throw new ArgumentNullException(nameof(markdown));
+        if (text == null)
+            throw new ArgumentNullException(nameof(text));
 
-        if (markdown.Length == 0)
+        if (text.Length == 0)
             return new List<Token>();
 
         // Step 1: NFC normalization
-        var normalized = markdown.Normalize(NormalizationForm.FormC);
+        var normalized = text.Normalize(NormalizationForm.FormC);
 
         var tokens = new List<Token>();
         int i = 0;

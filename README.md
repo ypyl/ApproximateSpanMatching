@@ -13,8 +13,8 @@ using ApproximateSpanMatching;
 using ApproximateSpanMatching.Matching;
 using ApproximateSpanMatching.Models;
 
-// Build an index from markdown
-var doc = IndexedDocument.FromMarkdown("The **quick** brown fox jumps over the lazy dog.");
+// Build an index from text
+var doc = IndexedDocument.FromText("The **quick** brown fox jumps over the lazy dog.");
 
 // Search for an approximate match
 var matcher = new SpanMatcher();

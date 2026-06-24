@@ -9,7 +9,7 @@ public class SpanMatcherTests
     [Fact]
     public void ExactMatch_ReturnsOneSpan()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox jumps");
+        var doc = IndexedDocument.FromText("the quick brown fox jumps");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "quick brown fox");
 
@@ -22,7 +22,7 @@ public class SpanMatcherTests
     [Fact]
     public void MatchWithDocGaps_LowerScore()
     {
-        var doc = IndexedDocument.FromMarkdown("quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "quick brown fox jumps over lazy dog");
 
@@ -36,7 +36,7 @@ public class SpanMatcherTests
     public void MatchWithMissingQueryWords()
     {
         // "leaps" isn't in the document; results depend on gap penalty severity
-        var doc = IndexedDocument.FromMarkdown("quick brown fox over lazy dog");
+        var doc = IndexedDocument.FromText("quick brown fox over lazy dog");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "quick brown fox leaps over lazy dog");
 
@@ -52,7 +52,7 @@ public class SpanMatcherTests
     [Fact]
     public void Threshold_FiltersLowScoring()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("the quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
 
         // Without threshold
@@ -67,7 +67,7 @@ public class SpanMatcherTests
     [Fact]
     public void TopN_LimitsResults()
     {
-        var doc = IndexedDocument.FromMarkdown(
+        var doc = IndexedDocument.FromText(
             "the quick brown the quick brown the quick brown the quick brown the quick brown");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "quick brown", topN: 3);
@@ -78,7 +78,7 @@ public class SpanMatcherTests
     [Fact]
     public void OverlappingSpans_Deduplicated()
     {
-        var doc = IndexedDocument.FromMarkdown(
+        var doc = IndexedDocument.FromText(
             "the quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "the quick", topN: 5);
@@ -103,7 +103,7 @@ public class SpanMatcherTests
     [Fact]
     public void MultiQueryReuse_IndexNotRebuilt()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("the quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
 
         var r1 = matcher.Search(doc, "quick brown");
@@ -118,8 +118,8 @@ public class SpanMatcherTests
     [Fact]
     public void QueryCaseSensitivity_FollowsDocument()
     {
-        var caseSensitiveDoc = IndexedDocument.FromMarkdown("The Quick Brown Fox", caseSensitive: true);
-        var caseInsensitiveDoc = IndexedDocument.FromMarkdown("The Quick Brown Fox", caseSensitive: false);
+        var caseSensitiveDoc = IndexedDocument.FromText("The Quick Brown Fox", caseSensitive: true);
+        var caseInsensitiveDoc = IndexedDocument.FromText("The Quick Brown Fox", caseSensitive: false);
         var matcher = new SpanMatcher();
 
         // Case-sensitive doc: "quick" won't match "Quick"
@@ -140,7 +140,7 @@ public class SpanMatcherTests
     [Fact]
     public void EmptyDocument_ReturnsEmpty()
     {
-        var doc = IndexedDocument.FromMarkdown("");
+        var doc = IndexedDocument.FromText("");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "anything");
         Assert.Empty(results);
@@ -149,7 +149,7 @@ public class SpanMatcherTests
     [Fact]
     public void EmptyQuery_ReturnsEmpty()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox");
+        var doc = IndexedDocument.FromText("the quick brown fox");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "");
         Assert.Empty(results);
@@ -165,7 +165,7 @@ public class SpanMatcherTests
     [Fact]
     public void NullQuery_Throws()
     {
-        var doc = IndexedDocument.FromMarkdown("test");
+        var doc = IndexedDocument.FromText("test");
         var matcher = new SpanMatcher();
         Assert.Throws<ArgumentNullException>(() => matcher.Search(doc, null!));
     }
@@ -173,7 +173,7 @@ public class SpanMatcherTests
     [Fact]
     public void InvalidTopN_Throws()
     {
-        var doc = IndexedDocument.FromMarkdown("test");
+        var doc = IndexedDocument.FromText("test");
         var matcher = new SpanMatcher();
         Assert.Throws<ArgumentOutOfRangeException>(() => matcher.Search(doc, "test", topN: 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => matcher.Search(doc, "test", topN: -1));
@@ -182,7 +182,7 @@ public class SpanMatcherTests
     [Fact]
     public void InvalidThreshold_Throws()
     {
-        var doc = IndexedDocument.FromMarkdown("test");
+        var doc = IndexedDocument.FromText("test");
         var matcher = new SpanMatcher();
         Assert.Throws<ArgumentOutOfRangeException>(() => matcher.Search(doc, "test", threshold: 1.5));
         Assert.Throws<ArgumentOutOfRangeException>(() => matcher.Search(doc, "test", threshold: -0.1));
@@ -192,7 +192,7 @@ public class SpanMatcherTests
     public void TieBreak_CoverageThenStartIndex()
     {
         // Two candidate spans with the same NormalizedScore should be ordered by Coverage then StartIndex
-        var doc = IndexedDocument.FromMarkdown(
+        var doc = IndexedDocument.FromText(
             "aaa aaa aaa aaa");  // 4 identical tokens
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "aaa aaa aaa", topN: 3);
@@ -215,7 +215,7 @@ public class SpanMatcherTests
     [Fact]
     public async Task ConcurrentSearches_Safe()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("the quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
 
         var tasks = new List<Task<List<SpanMatch>>>();
@@ -232,7 +232,7 @@ public class SpanMatcherTests
     [Fact]
     public void ResultsContainOriginalText()
     {
-        var doc = IndexedDocument.FromMarkdown("The **quick** brown fox.");
+        var doc = IndexedDocument.FromText("The **quick** brown fox.");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "quick brown fox");
 

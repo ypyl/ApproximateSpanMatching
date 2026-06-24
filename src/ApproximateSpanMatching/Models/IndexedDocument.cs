@@ -1,15 +1,15 @@
 namespace ApproximateSpanMatching.Models;
 
 /// <summary>
-/// An immutable, thread-safe indexed representation of a markdown document.
-/// Built once from markdown text and reusable across multiple queries.
+/// An immutable, thread-safe indexed representation of a text document.
+/// Built once from text and reusable across multiple queries.
 /// </summary>
 public sealed class IndexedDocument
 {
     /// <summary>The ordered sequence of word tokens in the document.</summary>
     public IReadOnlyList<Token> Tokens { get; }
 
-    /// <summary>The NFC-normalized markdown text used as the source.</summary>
+    /// <summary>The NFC-normalized text used as the source.</summary>
     public string OriginalText { get; }
 
     /// <summary>Whether this document was built in case-sensitive mode.</summary>
@@ -37,7 +37,7 @@ public sealed class IndexedDocument
     /// </summary>
     /// <param name="startWordIndex">Start word index, inclusive.</param>
     /// <param name="endWordIndex">End word index, exclusive.</param>
-    /// <returns>The markdown text from Tokens[start].StartChar to Tokens[end-1].EndChar.</returns>
+    /// <returns>The text from Tokens[start].StartChar to Tokens[end-1].EndChar.</returns>
     public string GetSpan(int startWordIndex, int endWordIndex)
     {
         if (startWordIndex < 0 || startWordIndex >= Tokens.Count)
@@ -65,15 +65,15 @@ public sealed class IndexedDocument
     }
 
     /// <summary>
-    /// Static factory: tokenizes markdown and builds an IndexedDocument in one call.
+    /// Static factory: tokenizes text and builds an IndexedDocument in one call.
     /// </summary>
-    /// <param name="markdown">The input markdown text.</param>
+    /// <param name="text">The input text.</param>
     /// <param name="caseSensitive">If true, token casing is preserved.</param>
-    public static IndexedDocument FromMarkdown(string markdown, bool caseSensitive = false)
+    public static IndexedDocument FromText(string text, bool caseSensitive = false)
     {
         // NFC-normalize first so both the tokens' character offsets and OriginalText agree.
-        var normalized = markdown.Normalize(System.Text.NormalizationForm.FormC);
-        var tokens = Indexing.MarkdownTokenizer.Tokenize(normalized, caseSensitive);
+        var normalized = text.Normalize(System.Text.NormalizationForm.FormC);
+        var tokens = Indexing.WordTokenizer.Tokenize(normalized, caseSensitive);
         return Indexing.IndexedDocumentBuilder.Build(tokens, normalized, caseSensitive);
     }
 }

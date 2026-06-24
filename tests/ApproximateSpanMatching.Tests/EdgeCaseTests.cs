@@ -65,7 +65,7 @@ public class EdgeCaseTests
     [Fact]
     public void SpanMatcher_SingleTokenDoc_SingleTokenQuery_Match()
     {
-        var doc = IndexedDocument.FromMarkdown("hello");
+        var doc = IndexedDocument.FromText("hello");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "hello");
         Assert.Single(results);
@@ -76,7 +76,7 @@ public class EdgeCaseTests
     [Fact]
     public void SpanMatcher_OnlyPunctuationQuery_ReturnsEmpty()
     {
-        var doc = IndexedDocument.FromMarkdown("hello world");
+        var doc = IndexedDocument.FromText("hello world");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "...");
         Assert.Empty(results);
@@ -85,7 +85,7 @@ public class EdgeCaseTests
     [Fact]
     public void SpanMatcher_WhitespaceOnlyQuery_ReturnsEmpty()
     {
-        var doc = IndexedDocument.FromMarkdown("hello world");
+        var doc = IndexedDocument.FromText("hello world");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "   ");
         Assert.Empty(results);
@@ -94,7 +94,7 @@ public class EdgeCaseTests
     [Fact]
     public void SpanMatcher_QueryLongerThanDocument_StillWorks()
     {
-        var doc = IndexedDocument.FromMarkdown("quick brown");
+        var doc = IndexedDocument.FromText("quick brown");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "the quick brown fox jumps over the lazy dog");
         // Should find partial matches; no crash
@@ -108,7 +108,7 @@ public class EdgeCaseTests
     [Fact]
     public void SpanMatcher_AllQueryWordsSame_StillWorks()
     {
-        var doc = IndexedDocument.FromMarkdown("the cat the dog the bird");
+        var doc = IndexedDocument.FromText("the cat the dog the bird");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "the the the");
         Assert.NotEmpty(results);
@@ -117,21 +117,21 @@ public class EdgeCaseTests
     [Fact]
     public void IndexedDocument_GetSpan_FullDocument()
     {
-        var doc = IndexedDocument.FromMarkdown("hello world");
+        var doc = IndexedDocument.FromText("hello world");
         Assert.Equal("hello world", doc.GetSpan(0, 2));
     }
 
     [Fact]
     public void IndexedDocument_GetSpan_SingleToken()
     {
-        var doc = IndexedDocument.FromMarkdown("hello world foo");
+        var doc = IndexedDocument.FromText("hello world foo");
         Assert.Equal("world", doc.GetSpan(1, 2));
     }
 
     [Fact]
     public void IndexedDocument_GetSpan_EmptyRange()
     {
-        var doc = IndexedDocument.FromMarkdown("hello world");
+        var doc = IndexedDocument.FromText("hello world");
         Assert.Equal("", doc.GetSpan(0, 0));
         Assert.Equal("", doc.GetSpan(1, 1));
     }
@@ -139,7 +139,7 @@ public class EdgeCaseTests
     [Fact]
     public void IndexedDocument_GetPositions_ReturnsAscendingOrder()
     {
-        var doc = IndexedDocument.FromMarkdown("a b a c a d a");
+        var doc = IndexedDocument.FromText("a b a c a d a");
         var positions = doc.GetPositions("a");
         Assert.Equal(new[] { 0, 2, 4, 6 }, positions);
     }
@@ -150,7 +150,7 @@ public class EdgeCaseTests
         // Spec: overlap of exactly 0.5 is NOT > 0.5, so both should be kept
         // This is hard to construct precisely through the full pipeline,
         // but we can test the dedup logic indirectly
-        var doc = IndexedDocument.FromMarkdown(
+        var doc = IndexedDocument.FromText(
             "a b c d e f g h i j k l m n o p q r s t");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "a b c", topN: 10);

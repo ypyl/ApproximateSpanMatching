@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Find top-N matching spans
 
@@ -46,24 +46,6 @@ A span SHALL include:
 - **WHEN** multiple candidate alignments overlap by more than 50%
 - **THEN** only the highest-scoring one is included in results
 
-### Requirement: Overlap metric and tie-breaking for ranking
-
-Deduplication overlap between two spans `A = [A.StartIndex, A.EndIndex)` and `B = [B.StartIndex, B.EndIndex)` is measured as the fraction of the **smaller** span covered by the intersection: `overlap = |A ∩ B| / min(|A|, |B|)`, where `|S| = S.EndIndex - S.StartIndex` (word count). If `overlap > 0.5`, the lower-scoring span is dropped; the higher-scoring span is kept.
-
-When two candidate spans have equal `NormalizedScore`, the tie is broken by descending `Coverage`, then by earlier `StartIndex` (smaller word position first). This ordering is deterministic.
-
-#### Scenario: Overlap measured against smaller span
-
-- **WHEN** span A covers word positions `[10, 20)` (10 words) and span B covers `[15, 40)` (25 words)
-- **AND** their intersection is `[15, 20)` (5 words)
-- **THEN** the overlap is `5 / min(10, 25) = 5/10 = 0.5`, which is not `> 0.5`, so both spans are kept
-
-#### Scenario: Equal-score tie-break
-
-- **WHEN** two non-overlapping candidate spans have identical `NormalizedScore`
-- **THEN** the one with higher `Coverage` ranks first
-- **AND** if `Coverage` is also equal, the one with the smaller `StartIndex` ranks first
-
 ### Requirement: Tokenize query string for matching
 
 The system SHALL tokenize the query string using exactly the same `WordTokenizer` and tokenization rules as document indexing (see document-indexing spec: "Tokenize text into word tokens" — NFC normalization, then word characters = Unicode letters, digits, apostrophes, hyphens/dashes, and digit-internal periods). This ensures token consistency between query and document for exact word matching.
@@ -98,27 +80,6 @@ The query SHALL be tokenized in the **same case-sensitivity mode** as the target
 - **WHEN** searching for `"xyzzy plugh"` where neither word exists in the document index
 - **THEN** an empty result list is returned (zero anchors → zero candidate regions → zero results)
 
-### Requirement: Score reflects gap penalties
-
-The system SHALL assign higher scores to spans where matched words appear in tight clusters versus spans where matched words are scattered with large gaps, even when both spans contain the same number of matched words.
-
-#### Scenario: Tight cluster scores higher than scattered
-
-- **WHEN** two candidate spans both match 5 query words
-- **AND** Span A has matched words with gaps of 0-1 words between them (tight)
-- **AND** Span B has matched words with gaps of 5-10 words between them (scattered)
-- **THEN** Span A receives a higher score than Span B
-
-### Requirement: Preserve word order in matching
-
-The system SHALL only consider matches where query word order is preserved in the document span. Matches where query words appear in a different order SHALL NOT contribute to the alignment score.
-
-#### Scenario: Out-of-order words not matched
-
-- **WHEN** searching for `"brown quick"` in a document containing `"quick brown fox"`
-- **THEN** the alignment score reflects that "brown" appears after "quick" in the document (order violation)
-- **AND** the score is lower than if the words appeared in the correct order
-
 ### Requirement: Reuse index across multiple queries
 
 The system SHALL allow searching the same IndexedDocument with multiple different queries without rebuilding the index. The IndexedDocument SHALL be immutable after construction and thread-safe for concurrent read access.
@@ -129,51 +90,3 @@ The system SHALL allow searching the same IndexedDocument with multiple differen
 - **AND** three different queries are executed against it
 - **THEN** each query returns results independently
 - **AND** the index is never rebuilt
-
-### Requirement: Threshold filtering
-
-The system SHALL filter results by a minimum `NormalizedScore` threshold. Only spans with `NormalizedScore >= threshold` are included in results. A threshold of 0.0 returns all candidate spans (up to `topN`); a threshold of 1.0 returns only exact matches (contiguous, all query words). Results are still capped at `topN` regardless of threshold.
-
-#### Scenario: Threshold filters low-scoring matches
-
-- **WHEN** searching with threshold = 0.8
-- **AND** there are candidate spans with scores [0.95, 0.75, 0.60]
-- **THEN** only the span with score 0.95 is returned
-
-### Requirement: Argument validation
-
-`SpanMatcher.Search` SHALL validate its arguments and throw on invalid input rather than returning misleading results:
-- `null` document → `ArgumentNullException` (parameter name `doc`)
-- `null` query → `ArgumentNullException` (parameter name `query`)
-- `topN <= 0` → `ArgumentOutOfRangeException` (parameter name `topN`)
-- `threshold` outside `[0.0, 1.0]` → `ArgumentOutOfRangeException` (parameter name `threshold`)
-
-An empty (`""`) document or query is valid and returns an empty result list (no throw).
-
-#### Scenario: Null arguments throw
-
-- **WHEN** `Search` is called with a `null` document or a `null` query
-- **THEN** an `ArgumentNullException` is thrown
-
-#### Scenario: Invalid topN or threshold throw
-
-- **WHEN** `Search` is called with `topN = 0` (or negative) or `threshold = 1.5` (or negative)
-- **THEN** an `ArgumentOutOfRangeException` is thrown
-
-### Requirement: SpanMatcher concurrency and reuse
-
-A `SpanMatcher` instance SHALL be stateless with respect to `Search` calls and safe for concurrent invocation across threads. A single instance MAY be reused against multiple `IndexedDocument` instances. The `IAlignmentStrategy` it holds is read-only during `Search`; custom strategies that carry mutable state MUST document their own thread-safety guarantees.
-
-#### Scenario: Concurrent searches on one SpanMatcher
-
-- **WHEN** the same `SpanMatcher` instance is used to run several `Search` calls concurrently against the same or different `IndexedDocument` instances
-- **THEN** each call returns correct results without interfering with the others
-
-### Requirement: Performance at scale
-
-For a reference document of ~20,000 words (~50 OCR pages) and a 50-word query, returning the top-3 spans SHALL complete in under 200 ms on conventional modern hardware (single-threaded, release build). The seed-and-cluster pipeline (design D3) is what makes this feasible; a degenerate document that defeats clustering (e.g., every query word occurring hundreds of times throughout) may exceed this budget and that is acceptable, but the common case SHALL meet it. This requirement is verified by a benchmark/integration test.
-
-#### Scenario: Typical document returns within budget
-
-- **WHEN** searching a ~20,000-word document with a 50-word query for top-3 results
-- **THEN** the search completes in under 200 ms on reference hardware in a release build

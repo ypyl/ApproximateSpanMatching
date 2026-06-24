@@ -29,7 +29,7 @@ public class BenchmarkTests
         }
 
         string largeDocText = sb.ToString();
-        var doc = IndexedDocument.FromMarkdown(largeDocText);
+        var doc = IndexedDocument.FromText(largeDocText);
 
         // Build a 50-word query using a subset of words that exist in the doc
         sb.Clear();
@@ -76,7 +76,7 @@ public class BenchmarkTests
             sb.Append("word");
         }
 
-        var doc = IndexedDocument.FromMarkdown(sb.ToString());
+        var doc = IndexedDocument.FromText(sb.ToString());
 
         var matcher = new SpanMatcher();
         var sw = Stopwatch.StartNew();

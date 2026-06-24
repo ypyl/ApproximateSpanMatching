@@ -17,9 +17,9 @@ public class SpecValidationTests
     // =========================================================================
 
     [Fact]
-    public void DocIndex_BasicMarkdownTokenization()
+    public void DocIndex_BasicTextTokenization()
     {
-        var tokens = MarkdownTokenizer.Tokenize("The **quick** brown fox.");
+        var tokens = WordTokenizer.Tokenize("The **quick** brown fox.");
         Assert.Equal(new[] { "the", "quick", "brown", "fox" }, tokens.Select(t => t.Text));
         // "each token has correct character offsets into the original string"
         Assert.Equal(0, tokens[0].StartChar);
@@ -31,35 +31,35 @@ public class SpecValidationTests
     [Fact]
     public void DocIndex_HyphenatedWords()
     {
-        var tokens = MarkdownTokenizer.Tokenize("state-of-the-art solution");
+        var tokens = WordTokenizer.Tokenize("state-of-the-art solution");
         Assert.Equal(new[] { "state-of-the-art", "solution" }, tokens.Select(t => t.Text));
     }
 
     [Fact]
     public void DocIndex_Contractions()
     {
-        var tokens = MarkdownTokenizer.Tokenize("don't stop");
+        var tokens = WordTokenizer.Tokenize("don't stop");
         Assert.Equal(new[] { "don't", "stop" }, tokens.Select(t => t.Text));
     }
 
     [Fact]
     public void DocIndex_NumbersAsTokens()
     {
-        var tokens = MarkdownTokenizer.Tokenize("Section 3.2 covers details");
+        var tokens = WordTokenizer.Tokenize("Section 3.2 covers details");
         Assert.Equal(new[] { "section", "3.2", "covers", "details" }, tokens.Select(t => t.Text));
     }
 
     [Fact]
     public void DocIndex_EmptyInput()
     {
-        var tokens = MarkdownTokenizer.Tokenize("");
+        var tokens = WordTokenizer.Tokenize("");
         Assert.Empty(tokens);
     }
 
     [Fact]
-    public void DocIndex_MarkdownStructuresAndURLs()
+    public void DocIndex_FormattingStructuresAndURLs()
     {
-        var tokens = MarkdownTokenizer.Tokenize("see `code` and [link](https://example.com/path) here");
+        var tokens = WordTokenizer.Tokenize("see `code` and [link](https://example.com/path) here");
         Assert.Equal(
             new[] { "see", "code", "and", "link", "https", "example", "com", "path", "here" },
             tokens.Select(t => t.Text));
@@ -68,7 +68,7 @@ public class SpecValidationTests
     [Fact]
     public void DocIndex_SoftHyphenDelimiter()
     {
-        var tokens = MarkdownTokenizer.Tokenize("state\u00ADof affairs");
+        var tokens = WordTokenizer.Tokenize("state\u00ADof affairs");
         Assert.Equal(new[] { "state", "of", "affairs" }, tokens.Select(t => t.Text));
     }
 
@@ -76,7 +76,7 @@ public class SpecValidationTests
     public void DocIndex_IndexConstruction()
     {
         // Build a doc from the exact token sequence in the spec
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox the lazy dog");
+        var doc = IndexedDocument.FromText("the quick brown fox the lazy dog");
         Assert.Equal(new[] { 0, 4 }, doc.GetPositions("the"));
         Assert.Equal(new[] { 1 }, doc.GetPositions("quick"));
         Assert.Equal(new[] { 2 }, doc.GetPositions("brown"));
@@ -88,7 +88,7 @@ public class SpecValidationTests
     [Fact]
     public void DocIndex_TokenNotInDocument()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox");
+        var doc = IndexedDocument.FromText("the quick brown fox");
         Assert.Empty(doc.GetPositions("elephant"));
     }
 
@@ -97,7 +97,7 @@ public class SpecValidationTests
     {
         // Spec: extracting [1, 4) from "The **quick** brown fox."
         // → returns "quick** brown fox" (from StartChar of token 1 to EndChar of token 3)
-        var doc = IndexedDocument.FromMarkdown("The **quick** brown fox.");
+        var doc = IndexedDocument.FromText("The **quick** brown fox.");
         var span = doc.GetSpan(1, 4);
         Assert.Equal("quick** brown fox", span);
     }
@@ -105,21 +105,21 @@ public class SpecValidationTests
     [Fact]
     public void DocIndex_CaseInsensitiveDefault()
     {
-        var tokens = MarkdownTokenizer.Tokenize("The Quick Brown Fox");
+        var tokens = WordTokenizer.Tokenize("The Quick Brown Fox");
         Assert.Equal(new[] { "the", "quick", "brown", "fox" }, tokens.Select(t => t.Text));
     }
 
     [Fact]
     public void DocIndex_CaseSensitive()
     {
-        var tokens = MarkdownTokenizer.Tokenize("The Quick Brown Fox", caseSensitive: true);
+        var tokens = WordTokenizer.Tokenize("The Quick Brown Fox", caseSensitive: true);
         Assert.Equal(new[] { "The", "Quick", "Brown", "Fox" }, tokens.Select(t => t.Text));
     }
 
     [Fact]
     public void DocIndex_EmptyDocumentHandling()
     {
-        var doc = IndexedDocument.FromMarkdown("");
+        var doc = IndexedDocument.FromText("");
         Assert.Empty(doc.Tokens);
         Assert.Empty(doc.GetPositions("anything"));
         Assert.Equal("", doc.OriginalText);
@@ -244,7 +244,7 @@ public class SpecValidationTests
     {
         var custom = new CustomStrategy();
         var matcher = new SpanMatcher(custom);
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox");
+        var doc = IndexedDocument.FromText("the quick brown fox");
         matcher.Search(doc, "quick brown");
         Assert.True(custom.WasCalled);
     }
@@ -254,7 +254,7 @@ public class SpecValidationTests
     {
         var matcher = new SpanMatcher();
         // Indirectly verify: searching works with default SW alignment
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox");
+        var doc = IndexedDocument.FromText("the quick brown fox");
         var results = matcher.Search(doc, "quick brown");
         Assert.NotEmpty(results);
     }
@@ -266,7 +266,7 @@ public class SpecValidationTests
     [Fact]
     public void Span_ExactMatch()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox jumps");
+        var doc = IndexedDocument.FromText("the quick brown fox jumps");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "quick brown fox");
         Assert.Single(results);
@@ -277,7 +277,7 @@ public class SpecValidationTests
     [Fact]
     public void Span_MatchWithGapsInDocument()
     {
-        var doc = IndexedDocument.FromMarkdown("quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "quick brown fox jumps over lazy dog");
         // Spec: one span, Coverage may be < 1.0 with default penalties (SW prefers gap-free sub-alignment)
@@ -290,7 +290,7 @@ public class SpecValidationTests
     public void Span_MatchWithMissingQueryWords()
     {
         // "leaps" not in the document; with default penalties, best alignment may be a tight cluster
-        var doc = IndexedDocument.FromMarkdown("quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "quick brown fox leaps over lazy dog");
         // Spec: a span is returned matching available words (if any sub-alignment scores positively)
@@ -304,7 +304,7 @@ public class SpecValidationTests
     public void Span_NoMatchAboveThreshold()
     {
         // "elephant in the room" against a document with no matching words
-        var doc = IndexedDocument.FromMarkdown("xyzzy plugh frotz blarg");
+        var doc = IndexedDocument.FromText("xyzzy plugh frotz blarg");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "elephant in the room");
         Assert.Empty(results);
@@ -314,7 +314,7 @@ public class SpecValidationTests
     public void Span_Top3Results()
     {
         // "quick brown" in 5 separate locations
-        var doc = IndexedDocument.FromMarkdown(
+        var doc = IndexedDocument.FromText(
             "quick brown xxx quick brown xxx quick brown xxx quick brown xxx quick brown");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "quick brown", topN: 3);
@@ -324,7 +324,7 @@ public class SpecValidationTests
     [Fact]
     public void Span_OverlappingDeduplicated()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("the quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "the quick", topN: 10);
         // All kept spans must have overlap ≤ 50% with each other
@@ -347,9 +347,9 @@ public class SpecValidationTests
     [Fact]
     public void Span_QueryTokenizedSameAsDocument()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox");
+        var doc = IndexedDocument.FromText("the quick brown fox");
         var matcher = new SpanMatcher();
-        // Query with markdown syntax should tokenize the same way
+        // Query with formatting characters should tokenize the same way
         var results = matcher.Search(doc, "The **quick** brown fox.");
         Assert.NotEmpty(results);
         Assert.Equal(1.0, results[0].NormalizedScore);
@@ -358,8 +358,8 @@ public class SpecValidationTests
     [Fact]
     public void Span_QueryCaseSensitivityFollowsDocument()
     {
-        var csDoc = IndexedDocument.FromMarkdown("The Quick Brown Fox", caseSensitive: true);
-        var ciDoc = IndexedDocument.FromMarkdown("The Quick Brown Fox", caseSensitive: false);
+        var csDoc = IndexedDocument.FromText("The Quick Brown Fox", caseSensitive: true);
+        var ciDoc = IndexedDocument.FromText("The Quick Brown Fox", caseSensitive: false);
         var matcher = new SpanMatcher();
 
         // Case-sensitive doc: "Quick Brown" matches
@@ -374,7 +374,7 @@ public class SpecValidationTests
     [Fact]
     public void Span_EmptyQuery()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox");
+        var doc = IndexedDocument.FromText("the quick brown fox");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "");
         Assert.Empty(results);
@@ -383,7 +383,7 @@ public class SpecValidationTests
     [Fact]
     public void Span_RepeatedWordsInQuery()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox and the lazy dog");
+        var doc = IndexedDocument.FromText("the quick brown fox and the lazy dog");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "the quick brown fox and the lazy dog");
         Assert.NotEmpty(results);
@@ -394,7 +394,7 @@ public class SpecValidationTests
     [Fact]
     public void Span_NoQueryWordsFoundInDocument()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox");
+        var doc = IndexedDocument.FromText("the quick brown fox");
         var matcher = new SpanMatcher();
         var results = matcher.Search(doc, "xyzzy plugh");
         Assert.Empty(results);
@@ -405,8 +405,8 @@ public class SpecValidationTests
     {
         // This is tested at the SW level; verify through the pipeline that tight matches
         // produce higher scores
-        var tightDoc = IndexedDocument.FromMarkdown("a b c d e");
-        var scatteredDoc = IndexedDocument.FromMarkdown("a x x x x x x b x x x x x x c x x x x x x d x x x x x x e");
+        var tightDoc = IndexedDocument.FromText("a b c d e");
+        var scatteredDoc = IndexedDocument.FromText("a x x x x x x b x x x x x x c x x x x x x d x x x x x x e");
         var matcher = new SpanMatcher();
 
         var tight = matcher.Search(tightDoc, "a b c d e");
@@ -421,7 +421,7 @@ public class SpecValidationTests
     public void Span_OutOfOrderWordsNotMatched()
     {
         // "brown quick" in "quick brown fox" — order violation
-        var doc = IndexedDocument.FromMarkdown("quick brown fox");
+        var doc = IndexedDocument.FromText("quick brown fox");
         var matcher = new SpanMatcher();
         var outOfOrder = matcher.Search(doc, "brown quick");
         var inOrder = matcher.Search(doc, "quick brown");
@@ -437,7 +437,7 @@ public class SpecValidationTests
     [Fact]
     public void Span_MultipleQueriesAgainstOneDocument()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("the quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
         var r1 = matcher.Search(doc, "quick brown");
         var r2 = matcher.Search(doc, "lazy dog");
@@ -450,7 +450,7 @@ public class SpecValidationTests
     [Fact]
     public void Span_ThresholdFiltering()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("the quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
 
         // threshold 1.0 returns only exact matches
@@ -466,7 +466,7 @@ public class SpecValidationTests
     public void Span_NullArgumentsThrow()
     {
         var matcher = new SpanMatcher();
-        var doc = IndexedDocument.FromMarkdown("test");
+        var doc = IndexedDocument.FromText("test");
         Assert.Throws<ArgumentNullException>(() => matcher.Search(null!, "query"));
         Assert.Throws<ArgumentNullException>(() => matcher.Search(doc, null!));
     }
@@ -475,7 +475,7 @@ public class SpecValidationTests
     public void Span_InvalidTopNOrThresholdThrow()
     {
         var matcher = new SpanMatcher();
-        var doc = IndexedDocument.FromMarkdown("test");
+        var doc = IndexedDocument.FromText("test");
         Assert.Throws<ArgumentOutOfRangeException>(() => matcher.Search(doc, "test", topN: 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => matcher.Search(doc, "test", topN: -1));
         Assert.Throws<ArgumentOutOfRangeException>(() => matcher.Search(doc, "test", threshold: 1.5));
@@ -485,7 +485,7 @@ public class SpecValidationTests
     [Fact]
     public async Task Span_ConcurrentSearchesSafe()
     {
-        var doc = IndexedDocument.FromMarkdown("the quick brown fox jumps over the lazy dog");
+        var doc = IndexedDocument.FromText("the quick brown fox jumps over the lazy dog");
         var matcher = new SpanMatcher();
         var tasks = Enumerable.Range(0, 20)
             .Select(_ => Task.Run(() => matcher.Search(doc, "quick brown fox")))
@@ -507,7 +507,7 @@ public class SpecValidationTests
             if (i > 0) sb.Append(' ');
             sb.Append(pool[rng.Next(pool.Length)]);
         }
-        var doc = IndexedDocument.FromMarkdown(sb.ToString());
+        var doc = IndexedDocument.FromText(sb.ToString());
 
         var qsb = new System.Text.StringBuilder();
         for (int i = 0; i < 50; i++)

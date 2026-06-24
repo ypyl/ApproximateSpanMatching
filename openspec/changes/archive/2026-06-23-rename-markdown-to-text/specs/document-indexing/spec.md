@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Tokenize text into word tokens
 
@@ -58,20 +58,6 @@ Each token SHALL include:
 - **THEN** the system produces tokens: `["state", "of", "affairs"]` — the soft hyphen is a delimiter and splits the run
 - **AND** a real hyphen U+002D would instead yield `["state-of", "affairs"]` (hyphen is a word character)
 
-### Requirement: Build inverted word-position index
-
-The system SHALL build an inverted index mapping each unique token to all positions where it appears in the document. The index SHALL support O(1) lookup by token and return all positions in ascending order.
-
-#### Scenario: Index construction
-
-- **WHEN** an IndexedDocument is built from tokens `["the", "quick", "brown", "fox", "the", "lazy", "dog"]`
-- **THEN** the inverted index maps: `"the" → [0, 4]`, `"quick" → [1]`, `"brown" → [2]`, `"fox" → [3]`, `"lazy" → [5]`, `"dog" → [6]`
-
-#### Scenario: Token not in document
-
-- **WHEN** a token `"elephant"` is looked up in an index where it never appears
-- **THEN** the system returns an empty position list
-
 ### Requirement: Provide original text span extraction
 
 The system SHALL allow extracting the original text for any word position range `[start, end)` — a half-open interval, `end` exclusive — from an IndexedDocument, using the stored character offsets to slice the source string from `Tokens[start].StartChar` to `Tokens[end-1].EndChar`.
@@ -80,20 +66,6 @@ The system SHALL allow extracting the original text for any word position range 
 
 - **WHEN** extracting the span for word positions `[1, 4)` from document `"The **quick** brown fox."`
 - **THEN** the system returns `"quick** brown fox"` (the original text from `StartChar` of token 1 to `EndChar` of token 3, i.e. tokens 1, 2, 3 — surrounding formatting before the first token is not included)
-
-### Requirement: Case sensitivity option
-
-The system SHALL support both case-sensitive and case-insensitive tokenization. In case-insensitive mode (default), all tokens are lowercased. In case-sensitive mode, tokens retain their original casing.
-
-#### Scenario: Case-insensitive matching (default)
-
-- **WHEN** tokenizing `"The Quick Brown Fox"` in case-insensitive mode
-- **THEN** tokens are `["the", "quick", "brown", "fox"]`
-
-#### Scenario: Case-sensitive matching
-
-- **WHEN** tokenizing `"The Quick Brown Fox"` in case-sensitive mode
-- **THEN** tokens are `["The", "Quick", "Brown", "Fox"]`
 
 ### Requirement: Empty document handling
 

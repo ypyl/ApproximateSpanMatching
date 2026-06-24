@@ -17,7 +17,7 @@ public sealed class SpanMatch
     /// <summary>Fraction of query words matched = matchedQueryWordCount / queryWordCount, range [0, 1].</summary>
     public double Coverage { get; }
 
-    /// <summary>Original markdown text extracted from the document for [StartIndex, EndIndex).</summary>
+    /// <summary>Original text extracted from the document for [StartIndex, EndIndex).</summary>
     public string OriginalText { get; }
 
     /// <summary>Alignment trace: list of (queryWordIndex, docWordIndex) pairs showing which words matched.</summary>

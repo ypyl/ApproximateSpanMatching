@@ -42,7 +42,7 @@ public class SpanMatcher
             throw new ArgumentOutOfRangeException(nameof(threshold), "threshold must be in [0, 1].");
 
         // Tokenize the query in the same case-sensitivity mode as the document
-        var queryTokens = MarkdownTokenizer.Tokenize(query, doc.CaseSensitive);
+        var queryTokens = WordTokenizer.Tokenize(query, doc.CaseSensitive);
         if (queryTokens.Count == 0)
             return new List<SpanMatch>();
 
