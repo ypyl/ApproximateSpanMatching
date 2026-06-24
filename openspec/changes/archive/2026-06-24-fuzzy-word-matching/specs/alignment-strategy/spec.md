@@ -1,35 +1,4 @@
-## Purpose
-
-Defines the pluggable alignment strategy interface and its default Smith-Waterman implementation for word-level sequence alignment with gap penalties.
-## Requirements
-### Requirement: IAlignmentStrategy interface contract
-
-The system SHALL define an `IAlignmentStrategy` interface that accepts query tokens, document region tokens, and a document start offset, and returns an alignment result containing the optimal alignment score, span boundaries, and matched token pairs.
-
-```csharp
-public interface IAlignmentStrategy
-{
-    AlignmentResult Align(string[] queryTokens, string[] docRegionTokens, int docStartIndex);
-}
-```
-
-`AlignmentResult` SHALL include:
-- `Score` (double): Raw alignment score before normalization
-- `MatchedPairs` (IReadOnlyList<(int QueryIndex, int DocIndex)>): Ordered list of matched token pairs
-- `SpanStart` (int): absolute start word index in the document (inclusive) = `docStartIndex` + region-relative start
-- `SpanEnd` (int): absolute end word index in the document (exclusive) = `docStartIndex` + region-relative end
-
-#### Scenario: Strategy produces alignment from region
-
-- **WHEN** an alignment strategy aligns query `["quick", "brown", "fox"]` against doc region `["quick", "brown", "fox", "jumps"]` with docStartIndex 5
-- **THEN** the result has matched pairs: [(0,5), (1,6), (2,7)]
-- **AND** SpanStart = 5 and SpanEnd = 8
-
-#### Scenario: Strategy handles gaps in document
-
-- **WHEN** aligning query `["quick", "fox"]` against doc region `["quick", "brown", "fox"]` with docStartIndex 0
-- **THEN** the result has matched pairs: [(0,0), (1,2)]
-- **AND** the score reflects a gap penalty for skipping "brown"
+## MODIFIED Requirements
 
 ### Requirement: Default Smith-Waterman word alignment
 
@@ -43,8 +12,6 @@ Parameters:
 - Match reward: +1.0 for exact word match. When a similarity function is provided, the effective match reward scales from 0.0 to 1.0.
 
 When `wordSimilarity` is `null` (the default), the behavior SHALL be identical to the existing exact-match algorithm. This preserves backward compatibility.
-
-A pair is considered a match only when `similarity >= similarityThreshold` (inclusive). Scenarios SHALL use a threshold consistent with the stated similarity values: a word with similarity below the configured threshold SHALL NOT be matched.
 
 #### Scenario: Default alignment with no gaps
 
@@ -73,12 +40,11 @@ A pair is considered a match only when `similarity >= similarityThreshold` (incl
 
 #### Scenario: Fuzzy alignment with similar words
 
-- **WHEN** aligning query `["qu1ck", "brown", "fox"]` against doc region `["quick", "brown", "fox"]` with a trigram Jaccard similarity function (threshold 0.2) and default gap penalties
-- **AND** `Similarity("qu1ck", "quick")` is approximately 0.25 (≥ 0.2, so the pair is matchable)
+- **WHEN** aligning query `["qu1ck", "brown", "fox"]` against doc region `["quick", "brown", "fox"]` with a trigram Jaccard similarity function (threshold 0.3) and default gap penalties
 - **THEN** "qu1ck" matches "quick" with similarity ~0.25, contributing ~0.25 to the score
 - **AND** "brown" matches "brown" with similarity 1.0, contributing 1.0
 - **AND** "fox" matches "fox" with similarity 1.0, contributing 1.0
-- **AND** the total score is approximately 2.25 (the exact alignment path may differ depending on gap penalty interactions)
+- **AND** the total score is approximately 2.25 (the exact alignment path may differ depending on similarity threshold and gap penalty interactions)
 
 #### Scenario: Fuzzy word below similarity threshold treated as mismatch
 
@@ -94,39 +60,7 @@ A pair is considered a match only when `similarity >= similarityThreshold` (incl
 - **THEN** all behavior is identical to the pre-fuzzy implementation
 - **AND** mismatched words are never considered for alignment (score -∞)
 
-### Requirement: Alignment edge cases
-
-The default `SmithWatermanAlignment` SHALL handle degenerate inputs without throwing:
-- Empty `queryTokens` or empty `docRegionTokens` → return an `AlignmentResult` with `Score` 0.0, empty `MatchedPairs`, and `SpanStart == SpanEnd == docStartIndex`.
-- A best local alignment of 0.0 (no positive-scoring sub-alignment exists, because every candidate would go negative under gap penalties) → return `Score` 0.0, empty `MatchedPairs`, and `SpanStart == SpanEnd`. The score SHALL never be reported below 0.0 (Smith-Waterman local-alignment reset).
-- `null` `queryTokens` or `docRegionTokens` → throw `ArgumentNullException`.
-
-A zero-score alignment produces no span (the matcher drops it before ranking).
-
-#### Scenario: Empty query or region
-
-- **WHEN** aligning an empty query `[]` against doc region `["a", "b"]` with docStartIndex 3
-- **THEN** the result has `Score` 0.0, empty `MatchedPairs`, and `SpanStart == SpanEnd == 3`
-
-#### Scenario: No positive-scoring alignment
-
-- **WHEN** aligning query `["a", "b", "c"]` against doc region `["x", "y", "z"]` (no matching words) with default penalties
-- **THEN** the result has `Score` 0.0 and empty `MatchedPairs` (the local alignment resets to 0 rather than reporting a negative score)
-
-### Requirement: Strategy pluggability
-
-The system SHALL allow `SpanMatcher` to accept any `IAlignmentStrategy` implementation via constructor injection or property. The default strategy SHALL be `SmithWatermanAlignment` with default parameters if none is provided.
-
-#### Scenario: Custom alignment strategy
-
-- **WHEN** a SpanMatcher is constructed with a custom IAlignmentStrategy
-- **THEN** all Search calls use that custom strategy
-- **AND** the rest of the pipeline (index, cluster, rank) behaves identically
-
-#### Scenario: Default strategy when none provided
-
-- **WHEN** a SpanMatcher is constructed without specifying an IAlignmentStrategy
-- **THEN** it uses SmithWatermanAlignment with default gap penalties
+## ADDED Requirements
 
 ### Requirement: MatchedPair carries similarity score
 
@@ -155,4 +89,3 @@ public readonly record struct MatchedPair(int QueryIndex, int DocIndex, double S
 
 - **WHEN** `SmithWatermanAlignment` has no word similarity function (null)
 - **THEN** all produced `MatchedPair` instances have `Similarity = 1.0`
-

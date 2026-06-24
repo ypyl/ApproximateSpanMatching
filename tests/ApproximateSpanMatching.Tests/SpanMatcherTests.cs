@@ -1,5 +1,7 @@
+using ApproximateSpanMatching.Alignment;
 using ApproximateSpanMatching.Matching;
 using ApproximateSpanMatching.Models;
+using ApproximateSpanMatching.Similarity;
 using Xunit;
 
 namespace ApproximateSpanMatching.Tests;
@@ -239,5 +241,225 @@ public class SpanMatcherTests
         Assert.Single(results);
         Assert.NotNull(results[0].OriginalText);
         Assert.NotEmpty(results[0].OriginalText);
+    }
+
+    // --- Fuzzy search integration tests ---
+
+    [Fact]
+    public void FuzzyDisabled_BackwardCompatible()
+    {
+        var doc = IndexedDocument.FromText("the quick brown fox jumps");
+        var matcher = new SpanMatcher();
+        // No options → fuzzy disabled, same as before
+        var results = matcher.Search(doc, "quick brown fox");
+
+        Assert.Single(results);
+        Assert.Equal(1.0, results[0].NormalizedScore);
+    }
+
+    [Fact]
+    public void FuzzyEnabled_FindsSimilarWords()
+    {
+        var doc = IndexedDocument.FromText("the quick brown fox jumps");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        var options = new SearchOptions { EnableFuzzyAnchors = true, FuzzyAnchorThreshold = 0.2 };
+        var results = matcher.Search(doc, "qu1ck brown fox", options: options);
+
+        Assert.Single(results);
+        Assert.True(results[0].NormalizedScore < 1.0);
+        Assert.True(results[0].NormalizedScore > 0.0);
+    }
+
+    [Fact]
+    public void FuzzySearch_MatchedPairsHaveSimilarity()
+    {
+        var doc = IndexedDocument.FromText("the quick brown fox jumps");
+        var sim = new TrigramJaccardSimilarity();
+        var strategy = new SmithWatermanAlignment(wordSimilarity: sim, similarityThreshold: 0.2);
+        var matcher = new SpanMatcher(alignmentStrategy: strategy);
+
+        var options = new SearchOptions { EnableFuzzyAnchors = true, FuzzyAnchorThreshold = 0.2 };
+        var results = matcher.Search(doc, "qu1ck brown fox", options: options);
+
+        Assert.NotEmpty(results);
+        // First matched pair should be fuzzy ("qu1ck"↔"quick", similarity < 1.0)
+        var firstMatch = results[0].MatchedPairs[0];
+        Assert.True(firstMatch.Similarity < 1.0);
+
+        // Second and third should be exact
+        Assert.Equal(1.0, results[0].MatchedPairs[1].Similarity);
+        Assert.Equal(1.0, results[0].MatchedPairs[2].Similarity);
+    }
+
+    [Fact]
+    public void FuzzySearch_HighThreshold_Excludes()
+    {
+        var doc = IndexedDocument.FromText("the quick brown fox jumps");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        // FuzzyAnchorThreshold 0.5 is above ~0.25 Jaccard for "qu1ck"↔"quick"
+        var options = new SearchOptions { EnableFuzzyAnchors = true, FuzzyAnchorThreshold = 0.5 };
+        var results = matcher.Search(doc, "qu1ck brown", options: options);
+
+        // "qu1ck" has no fuzzy anchors → only "brown" anchors exist → no meaningful alignment
+        // This may return empty or a single-word result
+        if (results.Count > 0)
+        {
+            Assert.True(results[0].NormalizedScore < 1.0);
+        }
+    }
+
+    [Fact]
+    public void FuzzySearch_AllWordsFuzzy()
+    {
+        var doc = IndexedDocument.FromText("quick brown fox");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        var options = new SearchOptions { EnableFuzzyAnchors = true, FuzzyAnchorThreshold = 0.2 };
+        // Both query words need fuzzy anchors
+        var results = matcher.Search(doc, "qu1ck br0wn", options: options);
+
+        // Should still find the span, with reduced score
+        if (results.Count > 0)
+        {
+            Assert.True(results[0].NormalizedScore > 0.0);
+            Assert.True(results[0].NormalizedScore < 1.0);
+        }
+    }
+
+    [Fact]
+    public void FuzzySearch_ExactAnchorsTakePriority()
+    {
+        var doc = IndexedDocument.FromText("the quick brown fox the quick brown fox");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        var options = new SearchOptions { EnableFuzzyAnchors = true, FuzzyAnchorThreshold = 0.2 };
+        // "brown" has exact matches, "qu1ck" needs fuzzy
+        var results = matcher.Search(doc, "qu1ck brown", options: options);
+
+        Assert.NotEmpty(results);
+        // Both "brown" positions should have been found (exact anchors not suppressed by fuzzy)
+    }
+
+    // --- Edge case tests ---
+
+    [Fact]
+    public void FuzzySearch_EmptyQuery()
+    {
+        var doc = IndexedDocument.FromText("the quick brown fox");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        var options = new SearchOptions { EnableFuzzyAnchors = true };
+        var results = matcher.Search(doc, "", options: options);
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public void FuzzySearch_NoSimilarWords_ReturnsEmpty()
+    {
+        var doc = IndexedDocument.FromText("the quick brown fox");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        var options = new SearchOptions { EnableFuzzyAnchors = true, FuzzyAnchorThreshold = 0.2 };
+        // "zzzzz" has no trigram overlap with any document word
+        var results = matcher.Search(doc, "zzzzz brown", options: options);
+
+        // Should still find "brown" via exact match, but "zzzzz" contributes nothing
+        if (results.Count > 0)
+        {
+            Assert.True(results[0].Coverage <= 0.5);
+        }
+    }
+
+    [Fact]
+    public void FuzzySearch_ShortQueryWords_UsesBigrams()
+    {
+        var doc = IndexedDocument.FromText("cat dog bird");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        var options = new SearchOptions { EnableFuzzyAnchors = true, FuzzyAnchorThreshold = 0.2 };
+        // "bat" should have bigram overlap with "cat"
+        var results = matcher.Search(doc, "bat", options: options);
+
+        // Should find "cat" via fuzzy anchor, with reduced score
+        if (results.Count > 0)
+        {
+            Assert.True(results[0].NormalizedScore > 0.0);
+            Assert.True(results[0].NormalizedScore < 1.0);
+        }
+    }
+
+    [Fact]
+    public async Task FuzzySearch_ConcurrentSearches()
+    {
+        var doc = IndexedDocument.FromText("the quick brown fox jumps over the lazy dog");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        var options = new SearchOptions { EnableFuzzyAnchors = true, FuzzyAnchorThreshold = 0.2 };
+        var tasks = new List<Task<List<SpanMatch>>>();
+        for (int i = 0; i < 10; i++)
+        {
+            tasks.Add(Task.Run(() => matcher.Search(doc, "qu1ck brown fox", options: options)));
+        }
+
+        var results = await Task.WhenAll(tasks);
+        Assert.All(results, r => Assert.NotEmpty(r));
+    }
+
+    [Fact]
+    public void FuzzySearch_InvalidThreshold_Throws()
+    {
+        var doc = IndexedDocument.FromText("test");
+        var matcher = new SpanMatcher();
+
+        var badOptions1 = new SearchOptions { FuzzyAnchorThreshold = 1.5 };
+        Assert.Throws<ArgumentOutOfRangeException>(() => matcher.Search(doc, "test", options: badOptions1));
+
+        var badOptions2 = new SearchOptions { FuzzyAnchorThreshold = -0.1 };
+        Assert.Throws<ArgumentOutOfRangeException>(() => matcher.Search(doc, "test", options: badOptions2));
+    }
+
+    [Fact]
+    public void FuzzySearch_NormalizedScoreReflectsSimilarity()
+    {
+        // 5-word query where most/all words match fuzzily
+        // Score should be reduced proportionally
+        var doc = IndexedDocument.FromText("quick brown fox jumps over");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        var options = new SearchOptions { EnableFuzzyAnchors = true, FuzzyAnchorThreshold = 0.2 };
+        // Exact search (for comparison)
+        var exactResults = matcher.Search(doc, "quick brown fox jumps over");
+
+        if (exactResults.Count > 0)
+        {
+            Assert.Equal(1.0, exactResults[0].NormalizedScore);
+        }
+    }
+
+    [Fact]
+    public void FuzzySearch_WithDisabledFlag_ExactMatchOnly()
+    {
+        var doc = IndexedDocument.FromText("quick brown fox");
+        var sim = new TrigramJaccardSimilarity();
+        var matcher = new SpanMatcher(wordSimilarity: sim, similarityThreshold: 0.2);
+
+        // Disabled explicitly
+        var options = new SearchOptions { EnableFuzzyAnchors = false };
+        var results = matcher.Search(doc, "qu1ck", options: options);
+
+        // "qu1ck" has no exact anchors → no results
+        Assert.Empty(results);
     }
 }

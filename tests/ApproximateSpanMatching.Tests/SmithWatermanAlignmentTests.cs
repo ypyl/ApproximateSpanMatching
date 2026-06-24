@@ -1,5 +1,6 @@
 using ApproximateSpanMatching.Alignment;
 using ApproximateSpanMatching.Models;
+using ApproximateSpanMatching.Similarity;
 using Xunit;
 
 namespace ApproximateSpanMatching.Tests;
@@ -144,5 +145,74 @@ public class SmithWatermanAlignmentTests
             Assert.True(result.MatchedPairs[i].QueryIndex > result.MatchedPairs[i - 1].QueryIndex);
             Assert.True(result.MatchedPairs[i].DocIndex > result.MatchedPairs[i - 1].DocIndex);
         }
+    }
+
+    // --- Fuzzy alignment tests ---
+
+    [Fact]
+    public void FuzzyAlignment_SimilarWordsMatch()
+    {
+        var sim = new TrigramJaccardSimilarity();
+        var sw = new SmithWatermanAlignment(wordSimilarity: sim, similarityThreshold: 0.2);
+        var result = sw.Align(["qu1ck", "brown", "fox"], ["quick", "brown", "fox"], 0);
+
+        // All three words should match ("qu1ck"↔"quick" at ~0.25, others at 1.0)
+        // Per corrected spec scenario (threshold 0.2): total ≈ 0.25 + 1.0 + 1.0 = 2.25
+        Assert.Equal(3, result.MatchedPairs.Count);
+        Assert.True(result.Score > 2.0 && result.Score < 3.0);
+        Assert.Equal(2.25, result.Score, 1);  // ~2.25 within tolerance
+
+        // First pair should be fuzzy (similarity < 1.0)
+        Assert.True(result.MatchedPairs[0].Similarity < 1.0);
+        // Second and third should be exact (similarity = 1.0)
+        Assert.Equal(1.0, result.MatchedPairs[1].Similarity);
+        Assert.Equal(1.0, result.MatchedPairs[2].Similarity);
+    }
+
+    [Fact]
+    public void FuzzyAlignment_BelowThreshold_Mismatch()
+    {
+        var sim = new TrigramJaccardSimilarity();
+        // "xyzzy" has ~0.0 similarity to "quick" → below threshold 0.3 → treated as mismatch
+        var sw = new SmithWatermanAlignment(wordSimilarity: sim, similarityThreshold: 0.3);
+        var result = sw.Align(["xyzzy", "brown"], ["quick", "brown"], 0);
+
+        // Only "brown" should match
+        Assert.Equal(1.0, result.Score, 6);
+    }
+
+    [Fact]
+    public void FuzzyAlignment_BackwardCompatible_NullSimilarity()
+    {
+        var sw = new SmithWatermanAlignment(wordSimilarity: null);
+        // Exact behavior — "qu1ck" vs "quick" is a mismatch
+        var result = sw.Align(["qu1ck", "fox"], ["quick", "fox"], 0);
+
+        // Only "fox" should match (score 1.0)
+        Assert.Equal(1.0, result.Score);
+        Assert.Single(result.MatchedPairs);
+        Assert.Equal(1.0, result.MatchedPairs[0].Similarity);
+    }
+
+    [Fact]
+    public void FuzzyAlignment_MatchedPairsCarrySimilarity()
+    {
+        var sim = new TrigramJaccardSimilarity();
+        var sw = new SmithWatermanAlignment(wordSimilarity: sim, similarityThreshold: 0.2);
+        var result = sw.Align(["a", "b"], ["a", "b"], 0);
+
+        // Exact matches: similarity 1.0
+        Assert.Equal(2, result.MatchedPairs.Count);
+        Assert.Equal(1.0, result.MatchedPairs[0].Similarity);
+        Assert.Equal(1.0, result.MatchedPairs[1].Similarity);
+    }
+
+    [Fact]
+    public void FuzzyAlignment_InvalidThreshold_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new SmithWatermanAlignment(wordSimilarity: new TrigramJaccardSimilarity(), similarityThreshold: 1.5));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new SmithWatermanAlignment(wordSimilarity: new TrigramJaccardSimilarity(), similarityThreshold: -0.1));
     }
 }

@@ -3,6 +3,7 @@ namespace ApproximateSpanMatching.Matching;
 using ApproximateSpanMatching.Alignment;
 using ApproximateSpanMatching.Indexing;
 using ApproximateSpanMatching.Models;
+using ApproximateSpanMatching.Similarity;
 
 /// <summary>
 /// Searches for approximate spans in an IndexedDocument matching a query string.
@@ -16,9 +17,25 @@ public class SpanMatcher
     /// Creates a SpanMatcher with the given alignment strategy.
     /// </summary>
     /// <param name="alignmentStrategy">The alignment strategy to use. Defaults to SmithWatermanAlignment with default gap penalties.</param>
-    public SpanMatcher(IAlignmentStrategy? alignmentStrategy = null)
+    /// <param name="wordSimilarity">Optional word similarity function to pass to the default alignment strategy.
+    /// When alignmentStrategy is provided, this is ignored (the strategy carries its own similarity config).
+    /// When alignmentStrategy is null and wordSimilarity is provided, a SmithWatermanAlignment is created with this similarity function.</param>
+    /// <param name="similarityThreshold">Similarity threshold for the default alignment strategy, in [0, 1].
+    /// Only used when wordSimilarity is provided and alignmentStrategy is null. Default: 0.3.</param>
+    public SpanMatcher(IAlignmentStrategy? alignmentStrategy = null, IWordSimilarity? wordSimilarity = null, double similarityThreshold = 0.3)
     {
-        _alignmentStrategy = alignmentStrategy ?? new SmithWatermanAlignment();
+        if (alignmentStrategy != null)
+        {
+            _alignmentStrategy = alignmentStrategy;
+        }
+        else if (wordSimilarity != null)
+        {
+            _alignmentStrategy = new SmithWatermanAlignment(wordSimilarity: wordSimilarity, similarityThreshold: similarityThreshold);
+        }
+        else
+        {
+            _alignmentStrategy = new SmithWatermanAlignment();
+        }
     }
 
     /// <summary>
@@ -28,8 +45,9 @@ public class SpanMatcher
     /// <param name="query">The query string. Must not be null.</param>
     /// <param name="topN">Maximum number of results to return. Must be > 0.</param>
     /// <param name="threshold">Minimum NormalizedScore to include a result, in [0, 1].</param>
+    /// <param name="options">Optional search options for fuzzy matching. When null, fuzzy is disabled.</param>
     /// <returns>List of top-N non-overlapping spans, ranked by NormalizedScore.</returns>
-    public List<SpanMatch> Search(IndexedDocument doc, string query, int topN = 3, double threshold = 0.0)
+    public List<SpanMatch> Search(IndexedDocument doc, string query, int topN = 3, double threshold = 0.0, SearchOptions? options = null)
     {
         // Argument validation
         if (doc == null)
@@ -40,6 +58,11 @@ public class SpanMatcher
             throw new ArgumentOutOfRangeException(nameof(topN), "topN must be positive.");
         if (threshold < 0.0 || threshold > 1.0)
             throw new ArgumentOutOfRangeException(nameof(threshold), "threshold must be in [0, 1].");
+        if (options != null && (options.FuzzyAnchorThreshold < 0.0 || options.FuzzyAnchorThreshold > 1.0))
+            throw new ArgumentOutOfRangeException(nameof(options), "FuzzyAnchorThreshold must be in [0, 1].");
+
+        // Default options when null
+        options ??= new SearchOptions();
 
         // Tokenize the query in the same case-sensitivity mode as the document
         var queryTokens = WordTokenizer.Tokenize(query, doc.CaseSensitive);
@@ -50,7 +73,7 @@ public class SpanMatcher
         int queryLength = queryWords.Length;
 
         // Step 1: Anchor finding
-        var anchors = FindAnchors(doc, queryWords);
+        var anchors = FindAnchors(doc, queryWords, options);
         if (anchors.Count == 0)
             return new List<SpanMatch>();
 
@@ -116,18 +139,34 @@ public class SpanMatcher
 
     /// <summary>
     /// Finds anchor pairs: for each query token, looks up all document positions via the inverted index.
+    /// When fuzzy anchors are enabled, falls back to n-gram approximate lookup for words with no exact match.
     /// </summary>
-    private static List<(int QueryPos, int DocPos)> FindAnchors(IndexedDocument doc, string[] queryWords)
+    private static List<(int QueryPos, int DocPos)> FindAnchors(IndexedDocument doc, string[] queryWords, SearchOptions options)
     {
         var anchors = new List<(int QueryPos, int DocPos)>();
 
         for (int qi = 0; qi < queryWords.Length; qi++)
         {
             var positions = doc.GetPositions(queryWords[qi]);
-            foreach (int docPos in positions)
+
+            if (positions.Count > 0)
             {
-                anchors.Add((qi, docPos));
+                // Exact matches found — use them directly
+                foreach (int docPos in positions)
+                {
+                    anchors.Add((qi, docPos));
+                }
             }
+            else if (options.EnableFuzzyAnchors)
+            {
+                // No exact matches — try fuzzy lookup
+                var fuzzyResults = doc.GetApproximatePositions(queryWords[qi], options.FuzzyAnchorThreshold);
+                foreach (var (docPos, _) in fuzzyResults)
+                {
+                    anchors.Add((qi, docPos));
+                }
+            }
+            // else: no exact matches and fuzzy disabled → no anchors for this word
         }
 
         return anchors;
