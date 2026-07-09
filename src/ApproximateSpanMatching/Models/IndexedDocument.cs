@@ -28,6 +28,9 @@ public sealed class IndexedDocument
     /// </summary>
     private readonly Dictionary<string, List<int>> _ngramIndex;
 
+    // ponytail: reuse TrigramJaccardSimilarity instead of hand-rolled Jaccard duplicate
+    private static readonly TrigramJaccardSimilarity _wordSimilarity = new();
+
     internal IndexedDocument(
         IReadOnlyList<Token> tokens,
         string originalText,
@@ -109,7 +112,7 @@ public sealed class IndexedDocument
         foreach (int pos in candidatePositions)
         {
             var docWord = Tokens[pos].Text;
-            double similarity = ComputeNgramJaccard(word, docWord);
+            double similarity = _wordSimilarity.Similarity(word, docWord);
             if (similarity >= threshold)
             {
                 results.Add((pos, similarity));
@@ -121,27 +124,17 @@ public sealed class IndexedDocument
         return results;
     }
 
-    private static double ComputeNgramJaccard(string a, string b)
+    private static void AddNgramPositions(Dictionary<string, List<int>> ngramIndex, HashSet<string> ngrams, int position)
     {
-        // Pair-consistent n-gram size (must match TrigramJaccardSimilarity.Similarity)
-        int n = (Math.Max(a.Length, b.Length) <= 4) ? 2 : 3;
-        var setA = TrigramJaccardSimilarity.GetNgrams(a, n);
-        var setB = TrigramJaccardSimilarity.GetNgrams(b, n);
-
-        if (setA.Count == 0 && setB.Count == 0)
-            return 1.0;
-        if (setA.Count == 0 || setB.Count == 0)
-            return 0.0;
-
-        int intersection = 0;
-        foreach (var ngram in setA)
+        foreach (var ngram in ngrams)
         {
-            if (setB.Contains(ngram))
-                intersection++;
+            if (!ngramIndex.TryGetValue(ngram, out var ngramPositions))
+            {
+                ngramPositions = new List<int>();
+                ngramIndex[ngram] = ngramPositions;
+            }
+            ngramPositions.Add(position);
         }
-
-        int union = setA.Count + setB.Count - intersection;
-        return (double)intersection / union;
     }
 
     /// <summary>
@@ -154,6 +147,25 @@ public sealed class IndexedDocument
         // NFC-normalize first so both the tokens' character offsets and OriginalText agree.
         var normalized = text.Normalize(System.Text.NormalizationForm.FormC);
         var tokens = Indexing.WordTokenizer.Tokenize(normalized, caseSensitive);
-        return Indexing.IndexedDocumentBuilder.Build(tokens, normalized, caseSensitive);
+
+        var invertedIndex = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        var ngramIndex = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            var word = tokens[i].Text;
+
+            if (!invertedIndex.TryGetValue(word, out var positions))
+            {
+                positions = new List<int>();
+                invertedIndex[word] = positions;
+            }
+            positions.Add(i);
+
+            AddNgramPositions(ngramIndex, TrigramJaccardSimilarity.GetNgrams(word, 2), i);
+            AddNgramPositions(ngramIndex, TrigramJaccardSimilarity.GetNgrams(word, 3), i);
+        }
+
+        return new IndexedDocument(tokens, normalized, caseSensitive, invertedIndex, ngramIndex);
     }
 }
