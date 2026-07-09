@@ -7,10 +7,12 @@
 
     <!-- NuGet metadata -->
     <PackageId>ApproximateSpanMatching</PackageId>
+    <Authors>ypyl</Authors>
     <Description>Approximate passage matching for OCR-extracted documents. Word-level token matching with gap penalties, order preservation, and fuzzy word similarity that tolerates typos and OCR errors. Indexed approach optimized for multi-query scenarios.</Description>
     <PackageTags>approximate-matching;passage-retrieval;text-search;span-matching;fuzzy-matching;ocr;trigram;jaccard</PackageTags>
     <Version>0.2.0</Version>
     <RepositoryUrl>https://github.com/ypyl/ApproximateSpanMatching</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
