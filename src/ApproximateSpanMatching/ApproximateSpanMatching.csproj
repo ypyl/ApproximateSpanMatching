@@ -10,7 +10,7 @@
     <Authors>ypyl</Authors>
     <Description>Approximate passage matching for OCR-extracted documents. Word-level token matching with gap penalties, order preservation, and fuzzy word similarity that tolerates typos and OCR errors. Indexed approach optimized for multi-query scenarios.</Description>
     <PackageTags>approximate-matching;passage-retrieval;text-search;span-matching;fuzzy-matching;ocr;trigram;jaccard</PackageTags>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <RepositoryUrl>https://github.com/ypyl/ApproximateSpanMatching</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
